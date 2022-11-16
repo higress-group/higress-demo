@@ -1,0 +1,12 @@
+apiVersion: extensions.istio.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: mock-response 
+  namespace: higress-system
+spec:
+  selector:
+    matchLabels:
+      higress: higress-system-higress-gateway
+  pluginConfig:
+    content: "hello higress" 
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/demo:1.0.0
