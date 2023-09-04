@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: springboot-deploy-1
+  namespace: app-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: springboot-app-1
+  template:
+    metadata:
+      labels:
+        app: springboot-app-1
+    spec:
+      volumes:
+        - name: skywalking-agent-1
+          emptyDir: { }
+
+      initContainers:
+        - name: agent-container
+          image: apache/skywalking-java-agent:8.16.0-java17
+          volumeMounts:
+            - name: skywalking-agent-1
+              mountPath: /agent
+          command: [ "/bin/sh" ]
+          args: [ "-c", "cp -R /skywalking/agent /agent/" ]
+
+      containers:
+        - name: app-container
+          image: liuxr25/springbootdemo:svc-tree-latest
+          volumeMounts:
+            - name: skywalking-agent-1
+              mountPath: /skywalking
+          env:
+            - name: sleep_time
+              value: "100"
+            - name: remote_addrs
+              value: "http://springboot-svc-2-1.app-system.svc.cluster.local:8082/,http://springboot-svc-2-2.app-system.svc.cluster.local:8083/"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-javaagent:/skywalking/agent/skywalking-agent.jar -Dskywalking.agent.service_name=springboot-svc-1 -Dskywalking.collector.backend_service=skywalking-oap-server.op-system.svc.cluster.local:11800"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: springboot-svc-1
+  namespace: app-system
+spec:
+  type: ClusterIP
+  sessionAffinity: None
+  selector:
+    app: springboot-app-1
+  ports:
+    - port: 8081
+      name: http
+      targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: springboot-ingress
+  namespace: app-system
+spec:
+  ingressClassName: higress
+  rules:
+    - http:
+        paths:
+          - pathType: Exact
+            path: /spring-svc-1
+            backend:
+              service:
+                name: springboot-svc-1
+                port:
+                  number: 8081
+      host: springboot.higress.io
