@@ -1,0 +1,51 @@
+# transform request
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: transformer-1.0.0
+  namespace: higress-system
+spec:
+  defaultConfigDisable: true
+  matchRules:
+  - ingress:
+    - foo
+    config:
+      type: request
+      rules:
+      - operate: add
+        headers:
+        - key: X-First
+          value: $1
+          path_pattern: ^\/(\w+)[\?]{0,1}.*$
+        querys:
+        - key: k1
+          value: v1
+      - operate: map
+        headers:
+        - key: X-First
+          value: X-Second
+  phase: UNSPECIFIED_PHASE
+  priority: 100
+  url: oci://docker.io/weixinx/transformer:v0.1.0
+---
+# transform response
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: transformer-resp-1.0.0
+  namespace: higress-system
+spec:
+  defaultConfigDisable: true
+  matchRules:
+  - ingress:
+    - foo
+    config:
+      type: response
+      rules:
+      - operate: dedupe
+        headers:
+        - key: X-Dedupe
+          value: RETAIN_FIRST
+  phase: UNSPECIFIED_PHASE
+  priority: 100
+  url: oci://docker.io/weixinx/transformer:v0.1.0
