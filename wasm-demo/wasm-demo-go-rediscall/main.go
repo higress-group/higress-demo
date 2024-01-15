@@ -88,25 +88,29 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config RedisCallConfig, log w
 	now := time.Now()
 	minuteAligned := now.Truncate(time.Minute)
 	timeStamp := strconv.FormatInt(minuteAligned.Unix(), 10)
-	config.client.Get(timeStamp, func(status int, response resp.Value) {
+	config.client.Incr(timeStamp, func(status int, response resp.Value) {
 		if status != 0 {
+			defer proxywasm.ResumeHttpRequest()
 			log.Errorf("Error occured while calling redis")
-			defer proxywasm.ResumeHttpRequest()
-			return
-		}
-		ctx.SetContext("timeStamp", timeStamp)
-		ctx.SetContext("CallTimeLeft", strconv.Itoa(config.qpm-response.Integer()-1))
-		if response.Integer() >= config.qpm {
-			proxywasm.SendHttpResponse(429, [][2]string{{"timeStamp", timeStamp}, {"CallTimeLeft", "0"}}, []byte("Too many requests"), -1)
-		}
-		config.client.Incr(timeStamp, func(status int, response resp.Value) {
-			defer proxywasm.ResumeHttpRequest()
-			if status != 0 {
-				log.Errorf("Error occured while calling redis")
+		} else {
+			ctx.SetContext("timeStamp", timeStamp)
+			ctx.SetContext("CallTimeLeft", strconv.Itoa(config.qpm-response.Integer()))
+			if response.Integer() == 1 {
+				config.client.Expire(timeStamp, 60, func(status int, response resp.Value) {
+					defer proxywasm.ResumeHttpRequest()
+					if status != 0 {
+						log.Errorf("Error occured while calling redis")
+					}
+				})
+			} else {
+				if response.Integer() > config.qpm {
+					proxywasm.SendHttpResponse(429, [][2]string{{"timeStamp", timeStamp}, {"CallTimeLeft", "0"}}, []byte("Too many requests"), -1)
+				} else {
+					defer proxywasm.ResumeHttpRequest()
+				}
 			}
-		})
+		}
 	})
-
 	return types.ActionPause
 }
 
