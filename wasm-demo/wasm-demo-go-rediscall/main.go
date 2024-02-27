@@ -90,8 +90,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config RedisCallConfig, log w
 	timeStamp := strconv.FormatInt(minuteAligned.Unix(), 10)
 	config.client.Incr(timeStamp, func(status int, response resp.Value) {
 		if status != 0 {
-			defer proxywasm.ResumeHttpRequest()
 			log.Errorf("Error occured while calling redis")
+			proxywasm.SendHttpResponse(430, nil, []byte("Error while calling redis"), -1)
 		} else {
 			ctx.SetContext("timeStamp", timeStamp)
 			ctx.SetContext("CallTimeLeft", strconv.Itoa(config.qpm-response.Integer()))
